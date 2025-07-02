@@ -16,6 +16,21 @@ const openai = new OpenAIApi(config);
 export async function POST(req: Request) {
   try {
     const { messages, chatId } = await req.json();
+    
+    // Input validation
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json(
+        { error: "Messages array is required and cannot be empty" },
+        { status: 400 }
+      );
+    }
+    
+    if (!chatId || typeof chatId !== "number") {
+      return NextResponse.json(
+        { error: "Valid chatId is required" },
+        { status: 400 }
+      );
+    }
     const _chats = await db.select().from(chats).where(eq(chats.id, chatId));
     if (_chats.length != 1) {
       return NextResponse.json({ error: "chat not found" }, { status: 404 });
@@ -69,5 +84,11 @@ export async function POST(req: Request) {
       },
     });
     return new StreamingTextResponse(stream);
-  } catch (error) {}
+  } catch (error) {
+    console.error("Error in chat API:", error);
+    return NextResponse.json(
+      { error: "Internal server error. Please try again." },
+      { status: 500 }
+    );
+  }
 }

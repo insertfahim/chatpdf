@@ -6,12 +6,12 @@ export async function downloadFromS3(file_key: string): Promise<string> {
       const s3 = new S3({
         region: "ap-southeast-1",
         credentials: {
-          accessKeyId: process.env.NEXT_PUBLIC_S3_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.NEXT_PUBLIC_S3_SECRET_ACCESS_KEY!,
+          accessKeyId: process.env.S3_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
         },
       });
       const params = {
-        Bucket: process.env.NEXT_PUBLIC_S3_BUCKET_NAME!,
+        Bucket: process.env.S3_BUCKET_NAME!,
         Key: file_key,
       };
 

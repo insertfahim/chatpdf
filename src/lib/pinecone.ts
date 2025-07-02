@@ -36,22 +36,35 @@ export async function loadS3IntoPinecone(fileKey: string) {
 
   // 2. split and segment the pdf
   const documents = await Promise.all(pages.map(prepareDocument));
+  const flatDocuments = documents.flat();
 
-  // 3. vectorise and embed individual documents
-  const vectors = await Promise.all(documents.flat().map(embedDocument));
+  // 3. vectorise and embed individual documents in batches for better performance
+  const BATCH_SIZE = 100; // Process embeddings in batches to avoid rate limits
+  const vectors = [];
+  
+  for (let i = 0; i < flatDocuments.length; i += BATCH_SIZE) {
+    const batch = flatDocuments.slice(i, i + BATCH_SIZE);
+    console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(flatDocuments.length / BATCH_SIZE)}`);
+    const batchVectors = await Promise.all(batch.map(embedDocument));
+    vectors.push(...batchVectors.filter(Boolean)); // Filter out any null results
+  }
 
-  // 4. upload to pinecone
+  // 4. upload to pinecone in batches
   const client = await getPineconeClient();
   const pineconeIndex = await client.index("chatpdf");
   const namespace = pineconeIndex.namespace(convertToAscii(fileKey));
 
   console.log("inserting vectors into pinecone");
-  await namespace.upsert(vectors);
+  const UPSERT_BATCH_SIZE = 100; // Pinecone has limits on batch size
+  for (let i = 0; i < vectors.length; i += UPSERT_BATCH_SIZE) {
+    const batch = vectors.slice(i, i + UPSERT_BATCH_SIZE);
+    await namespace.upsert(batch);
+  }
 
   return documents[0];
 }
 
-async function embedDocument(doc: Document) {
+async function embedDocument(doc: Document): Promise<PineconeRecord | null> {
   try {
     const embeddings = await getEmbeddings(doc.pageContent);
     const hash = md5(doc.pageContent);
@@ -66,7 +79,8 @@ async function embedDocument(doc: Document) {
     } as PineconeRecord;
   } catch (error) {
     console.log("error embedding document", error);
-    throw error;
+    // Return null instead of throwing to allow batch processing to continue
+    return null;
   }
 }
 
